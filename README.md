@@ -1,6 +1,6 @@
 # Jenkins CI/CD Project with Ansible and Kubernetes
 
-*Project Source* : ![](https://www.udemy.com/share/1023P43@TzHtDv17OEytQAPjLwu3e4zLrmxgSAIF0MbMFfhEKzFw7b_BGV_d1gNXdAKXNPxs/)
+*Project Source* : <a>(https://github.com/yankils/hello-world)</a>
   
 ![Project-architecture](project.png)
 ## CI/CD Pipeline using Git,Jenkins and Maven
@@ -480,13 +480,6 @@ Password:
 Login Succeeded
 ```
 
-- If we want to push an image to our dockerhub it has to be tagged with our docker username. We can tag an existing image by using `docker tag` command like shown below.
-
-```sh
-docker tag <image-id> rumeysakdogan/regapp:tagname
-docker push rumeysakdogan/regapp:tagname
-```
-
 - Now we can update our playbook to add new tasks.
 ```sh
 ---
@@ -498,10 +491,10 @@ docker push rumeysakdogan/regapp:tagname
       args:
         chdir: /opt/docker
     - name: create tag to push image onto dockerhub
-      command: docker tag regapp:latest rumeysakdogan/regapp:latest
+      command: docker tag regapp:latest gawinthorndykeregapp:latest
 
     - name: push docker image
-      command: docker push rumeysadogan/regapp:latest
+      command: docker push gawinthorndyke/regapp:latest
 ```
 
 - We can dry-run our playbook by giving `--check` flag.
@@ -529,7 +522,7 @@ exec command: ansible-playbook /opt/docker/regapp.yml
 
   tasks:
     - name: create container
-      command: docker run -d --name regapp-server -p 8082:8080 rumeysakdogan/regapp:latest 
+      command: docker run -d --name regapp-server -p 8082:8080 gawinthorndyke/regapp:latest 
 ```
 
 - But we have a problem in this playbook, when we try to run the same playbook again, it will give an error saying `regapp-server container already exists.` To fix this problem, we will add below tasks to our playbook.
@@ -554,11 +547,11 @@ exec command: ansible-playbook /opt/docker/regapp.yml
       ignore_errors: yes
 
     - name: remove the existing image
-      command: docker rmi rumeysakdogan/regapp:latest
+      command: docker rmi gawinthorndyke/regapp:latest
       ignore_errors: yes
 
     - name: create container
-      command: docker run -d --name regapp-server -p 8082:8080 rumeysakdogan/regapp:latest 
+      command: docker run -d --name regapp-server -p 8082:8080 gawinthorndyke/regapp:latest 
       ignore_errors: yes
 ```
 
@@ -566,7 +559,7 @@ exec command: ansible-playbook /opt/docker/regapp.yml
 ```sh
 ansible-playbook /opt/docker/regapp.yml;
 sleep 10;
-ansible-playbook /opt/docker/regapp-deploy.yml
+ansible-playbook /opt/docker/deploy.yml
 ```
 
 ## Kubernetes cluster on AWS using eksctl
@@ -584,13 +577,13 @@ ansible-playbook /opt/docker/regapp-deploy.yml
 
 - Create cluster by using eksctl with below command:
 ```sh
-eksctl create cluster --name rd-cluster \
+eksctl create cluster --name gawin-cluster \
 --region us-east-1 \
 --node-type t2.small 
 ```
 - To delete cluster, run below command:
 ```sh
-eksctl delete cluster --name rumeysa-cluster
+eksctl delete cluster --name rgawin-cluster
 ```
 
 ## Integrating Kubernetes with CI/CD pipeline
@@ -606,63 +599,17 @@ kubectl get no
 
 - Next we will create a deployment manifest for `regapp`.
 
-```Yaml
-apiVersion: apps/v1 
-kind: Deployment
-metadata:
-  name: rumeysa-regapp
-  labels: 
-     app: regapp
-
-spec:
-  replicas: 2 
-  selector:
-    matchLabels:
-      app: regapp
-
-  template:
-    metadata:
-      labels:
-        app: regapp
-    spec:
-      containers:
-      - name: regapp
-        image: rumeysakdogan/regapp
-        imagePullPolicy: Always
-        ports:
-        - containerPort: 8080
-  strategy:
-    type: RollingUpdate
-    rollingUpdate:
-      maxSurge: 1
-      maxUnavailable: 1
-```
-
 - We can create and check our deployment with below `kubectl` commands:
 ```sh
-kubectl apply -f regapp-deploy.yml
+kubectl apply -f deploy.yml
 kubectl get deploy
 ```
 
-- Now we need to create a service to access our application from browser. We will create a `LoadBalancer` type service manifest for our app.
-
-```yaml
-apiVersion: v1
-kind: Service
-metadata:
-  name: rumeysa-service
-spec:
-  selector:
-    app: regapp 
-  ports:
-    - port: 8080
-      targetPort: 8080
-  type: LoadBalancer
-```
+- Now we need to create a service to access our application from browser. We will create a `NodePort` type service manifest for our app.
 
 - We can create and check our service with below `kubectl` commands:
 ```sh
-kubectl apply -f regapp-service.yml
+kubectl apply -f service.yml
 kubectl get svc 
 ```
 
@@ -773,8 +720,8 @@ kubectl get deploy,svc
 Post-build Actions: Send over SSH
 server: ansiblehost
 Exec command:
-ansible-playbook /opt/docker/kube_deploy.yml;
-ansible-playbook /opt/docker/kube_service.yml;
+ansible-playbook /opt/docker/deploy.yml;
+ansible-playbook /opt/docker/service.yml;
 ```
 - Before running the job, lets delete existing deployments in our K8s server. Then we can run our job.
 ```sh
@@ -782,7 +729,7 @@ kubectl delete deploy rumeysa-regapp
 kubectl delete service rumeysa-service
 ```
 
-- We can combine playbooks in one by adding `kube_service.yml` as a new task under `kube_deploy.yml`.
+- We can combine playbooks in one by adding `service.yml` as a new task under `deploy.yml`.
 ```yaml
 ---
 - hosts: kubernetes
@@ -790,10 +737,7 @@ kubectl delete service rumeysa-service
 
   tasks:
     - name: deploy regapp on kubernetes
-      command: kubectl apply -f regapp-deployment.yml
-
-    - name: create loadbalancer service on kubernetes
-      command: kubectl apply -f regapp-service.yml
+      command: kubectl apply -f deploy.yml
 ```
 
 ### Step5: CI Job to create Image for Kubernetes
@@ -803,19 +747,6 @@ kubectl delete service rumeysa-service
 ansible-playbook /opt/docker/create_image_regapp.yml
 ```
 
-### Step6: Enable rolling update to create pod from latest docker image
-
-- To integrate our CI job with CD job, we will configure `PostBuild action` as `Build Other Projects`
-```yaml
-RegApp_CD_Job
-Initialize only when build is stable 
-```
-
-- We need to update one more thing in our `kube-deploy.yml` playbook. We need to specify the rollout whenever if new image is pushed to docker hub.
-```yaml
-  - name: update deployment with new pods if image updated in docker hub
-    command: kubectl rollout restart deployment.apps/rumeysa-regapp
-```
 
 
 
