@@ -10,7 +10,7 @@
 - First we need to launch an EC2 instance with Keypair
 ```sh
 instanceType: t2.micro
-AMI: Amazon Linux-2
+AMI: Amazon Linux-
 Security Group: 
 22, SSH
 8080, Custom TCP
